@@ -42,11 +42,12 @@ Latency per call: ~1s warm (global `mcporter` install) or ~2s cold (via
 via `queue_prefetch`, so the agent loop never blocks on this round-trip
 except for the first turn's synchronous prefetch (bounded at 3s).
 
-## Locked design decisions
+## Design
 
-| What | Value | Why |
+| What | Default | Notes |
 |---|---|---|
-| Default wing for Hermes writes | `raman_hermes` | Matches `raman_*` palace naming; overridable via `MEMPALACE_WING` |
+| Default wing for Hermes writes | `hermes` | Override via `MEMPALACE_WING` env var or `default_wing` in `$HERMES_HOME/mempalace-mcporter.json` |
+| Identity wing (wake-up source) | `identity` | Override via `MEMPALACE_IDENTITY_WING` or `identity_wing` config key |
 | Stable room name | `conversations` | Matches Phase 1's backfill behavior; `session_id` lives in metadata |
 | Diary identity | single `agent_name = "hermes"` | All Hermes diary in one diary regardless of profile |
 | Wake-up | composed from 3 MCP calls cached at init | No dedicated `mempalace_wake_up` tool exists |
@@ -55,7 +56,7 @@ except for the first turn's synchronous prefetch (bounded at 3s).
 The wake-up is the most interesting piece — see
 [`plugin/__init__.py`](plugin/__init__.py) docstring for the three cached
 layers (`mempalace_status` for protocol + AAAK + structure;
-`mempalace_list_drawers(wing=raman_identity)` for identity;
+`mempalace_list_drawers(wing=<identity_wing>)` for identity;
 `mempalace_diary_read(agent_name=hermes)` for recent agent context).
 
 ## Install
@@ -93,13 +94,30 @@ Read from `$HERMES_HOME/mempalace-mcporter.json` first, then env vars override:
 
 | Key | Env var | Default |
 |---|---|---|
-| `default_wing` | `MEMPALACE_WING` | `raman_hermes` |
+| `default_wing` | `MEMPALACE_WING` | `hermes` |
+| `identity_wing` | `MEMPALACE_IDENTITY_WING` | `identity` |
 | `mcporter_server` | `MEMPALACE_MCPORTER_SERVER` | `mcphub` |
 | `tool_prefix` | `MEMPALACE_TOOL_PREFIX` | `mempalace-` |
 | `n_prefetch` | — | `3` (clamped 1–20) |
 
 `tool_prefix` is what mcphub prepends to tools from each upstream server. If
-your aggregator uses a different prefix (or none), set it here.
+your aggregator uses a different prefix (or none), set it here. Empty string
+is valid — set `{"tool_prefix": ""}` in the JSON when mcporter is configured
+to talk to mempalace directly (no aggregator).
+
+Empty-string env var values are treated as **unset** (a deliberate guard
+against accidental clobbering from deactivation scripts). To force a value
+to empty, use the JSON config file.
+
+Example `~/.hermes/mempalace-mcporter.json` for a palace whose wings use a
+custom prefix like `myorg_`:
+
+```json
+{
+  "default_wing": "myorg_hermes",
+  "identity_wing": "myorg_identity"
+}
+```
 
 ## Development
 
