@@ -385,8 +385,8 @@ def test_sync_turn_files_drawer_via_worker(patched_init):
     # Pull the add_drawer call to verify args.
     add = next(c for c in mock_client.call.call_args_list if c.args[0] == "mempalace_add_drawer")
     args = add.args[1]
-    assert args["wing"] == "raman_hermes"  # locked decision
-    assert args["room"] == "conversations"  # locked decision
+    assert args["wing"] == "hermes"  # default; ``default_wing`` overrides per user
+    assert args["room"] == "conversations"  # stable across all sessions
     assert "what's up" in args["content"]
     assert "not much" in args["content"]
 

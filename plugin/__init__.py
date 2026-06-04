@@ -12,16 +12,17 @@ same ABC, different backend.
 Locked architectural decisions (see ``docs/decisions.md`` if it exists, or
 the project README):
 
-* **Default wing for Hermes-originated writes:** ``raman_hermes`` (matches
-  the user's ``raman_*`` palace naming). Overridable via
-  ``MEMPALACE_WING`` env var.
+* **Default wing for Hermes-originated writes:** ``hermes``. Override per
+  user via ``MEMPALACE_WING`` env var or ``default_wing`` in
+  ``$HERMES_HOME/mempalace-mcporter.json``.
 * **Stable room name:** ``conversations`` (same as Phase 1; session ids
   live in metadata, not as the room).
 * **Diary identity:** single ``agent_name = "hermes"``. All diary entries
   land in ``wing_hermes`` (mempalace's default for per-agent diaries).
 * **Wake-up:** composed client-side from three MCP calls cached at init —
   ``mempalace_status`` (palace overview + ``PALACE_PROTOCOL`` + ``AAAK_SPEC``),
-  ``mempalace_list_drawers(wing=raman_identity, limit=5)`` (identity layer),
+  ``mempalace_list_drawers(wing=identity, limit=5)`` (identity layer; wing
+  is configurable via ``MEMPALACE_IDENTITY_WING``),
   ``mempalace_diary_read(agent_name=hermes, last_n=3)`` (recent agent context).
 * **Prefetch:** asynchronous via ``queue_prefetch``. The ~1s/call MCP
   latency makes synchronous prefetch unacceptable on the hot path; the
@@ -236,11 +237,13 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
 class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
     """MemPalace memory provider routed through mcporter + mcphub."""
 
-    # Locked decisions ----------------------------------------------------
-    DEFAULT_WING = "raman_hermes"
+    # Defaults — generic so the plugin works on any mempalace install.
+    # Override per-user via ``$HERMES_HOME/mempalace-mcporter.json`` or the
+    # ``MEMPALACE_WING`` / ``MEMPALACE_IDENTITY_WING`` env vars.
+    DEFAULT_WING = "hermes"
     DEFAULT_ROOM = "conversations"
     DIARY_AGENT_NAME = "hermes"
-    IDENTITY_WING = "raman_identity"
+    IDENTITY_WING = "identity"
     IDENTITY_DRAWERS_LIMIT = 5
     DIARY_READ_LAST_N = 3
 
@@ -608,18 +611,32 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
         return [
             {
                 "key": "default_wing",
+                "env_var": "MEMPALACE_WING",
                 "description": "Default wing for Hermes-originated drawer writes.",
                 "default": self.DEFAULT_WING,
             },
             {
+                "key": "identity_wing",
+                "env_var": "MEMPALACE_IDENTITY_WING",
+                "description": (
+                    "Wing whose drawers compose the identity layer of "
+                    "system_prompt_block."
+                ),
+                "default": self.IDENTITY_WING,
+            },
+            {
                 "key": "mcporter_server",
+                "env_var": "MEMPALACE_MCPORTER_SERVER",
                 "description": "mcporter server name in ~/.mcporter/mcporter.json.",
                 "default": "mcphub",
             },
             {
                 "key": "tool_prefix",
+                "env_var": "MEMPALACE_TOOL_PREFIX",
                 "description": (
-                    "Tool name prefix on the aggregator (e.g. 'mempalace-' through mcphub)."
+                    "Tool name prefix on the aggregator "
+                    "(e.g. 'mempalace-' through mcphub). "
+                    "Empty when mcporter talks directly to mempalace."
                 ),
                 "default": "mempalace-",
             },
@@ -665,6 +682,7 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
                     logger.debug("config load failed: %s", exc)
         for env_key, conf_key in (
             ("MEMPALACE_WING", "default_wing"),
+            ("MEMPALACE_IDENTITY_WING", "identity_wing"),
             ("MEMPALACE_MCPORTER_SERVER", "mcporter_server"),
             ("MEMPALACE_TOOL_PREFIX", "tool_prefix"),
         ):
@@ -692,10 +710,11 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
     def _refresh_wakeup_identity(self) -> None:
         if self._client is None:
             return
+        identity_wing = self._config.get("identity_wing") or self.IDENTITY_WING
         try:
             result = self._client.call(
                 "mempalace_list_drawers",
-                {"wing": self.IDENTITY_WING, "limit": self.IDENTITY_DRAWERS_LIMIT},
+                {"wing": identity_wing, "limit": self.IDENTITY_DRAWERS_LIMIT},
             )
         except McporterError as exc:
             logger.debug("identity wake-up fetch failed: %s", exc)
