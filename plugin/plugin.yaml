@@ -1,0 +1,9 @@
+name: mempalace-mcp
+version: 0.1.0
+description: "MemPalace memory provider routed through mcporter + mcphub — for setups where mempalace runs on a separate host."
+hooks:
+  - on_session_end
+  - on_session_switch
+  - on_pre_compress
+  - on_memory_write
+  - on_delegation
