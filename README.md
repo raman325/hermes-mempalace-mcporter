@@ -1,4 +1,4 @@
-# hermes-mempalace-mcp
+# hermes-mempalace-mcporter
 
 Hermes [`MemoryProvider`](https://github.com/NousResearch/hermes-agent) plugin
 that routes through [mempalace](https://github.com/MemPalace/mempalace)'s MCP
@@ -25,7 +25,7 @@ a different host than Hermes and you already have an MCP aggregator wired up.
 Hermes (Python)
     │  imports & calls
     ▼
-MempalaceMcpProvider  (this plugin)
+MempalaceMcporterProvider  (this plugin)
     │  subprocess
     ▼
 mcporter call mcphub.mempalace-<tool>  (Node.js CLI)
@@ -70,16 +70,16 @@ ssh hermes 'sudo npm install -g mcporter'
 Then deploy the plugin:
 
 ```bash
-git clone https://github.com/raman325/hermes-mempalace-mcp.git   # or wherever
-cd hermes-mempalace-mcp
-./deploy.sh   # rsyncs plugin/ to hermes:~/.hermes/plugins/mempalace-mcp/
+git clone https://github.com/raman325/hermes-mempalace-mcporter.git   # or wherever
+cd hermes-mempalace-mcporter
+./deploy.sh   # rsyncs plugin/ to hermes:~/.hermes/plugins/mempalace-mcporter/
 ```
 
 In `~/.hermes/config.yaml`:
 
 ```yaml
 memory:
-  provider: mempalace-mcp
+  provider: mempalace-mcporter
 ```
 
 Restart Hermes; the plugin self-tests against mempalace at `initialize`
@@ -89,7 +89,7 @@ behavior it can't deliver.
 
 ## Configuration
 
-Read from `$HERMES_HOME/mempalace-mcp.json` first, then env vars override:
+Read from `$HERMES_HOME/mempalace-mcporter.json` first, then env vars override:
 
 | Key | Env var | Default |
 |---|---|---|

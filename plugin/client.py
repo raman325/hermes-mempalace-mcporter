@@ -33,7 +33,7 @@ import shutil
 import subprocess
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger("mempalace_mcp.client")
+logger = logging.getLogger("mempalace_mcporter.client")
 
 
 # Default mcphub server name as registered in ``~/.mcporter/mcporter.json``.

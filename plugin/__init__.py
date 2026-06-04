@@ -51,7 +51,7 @@ except ImportError:  # pragma: no cover
         """Stub used when ``agent.memory_provider`` cannot be imported."""
 
 
-logger = logging.getLogger("mempalace_mcp")
+logger = logging.getLogger("mempalace_mcporter")
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +233,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
 # ---------------------------------------------------------------------------
 
 
-class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
+class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
     """MemPalace memory provider routed through mcporter + mcphub."""
 
     # Locked decisions ----------------------------------------------------
@@ -283,7 +283,7 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
 
     @property
     def name(self) -> str:
-        return "mempalace-mcp"
+        return "mempalace-mcporter"
 
     def is_available(self) -> bool:
         # mcporter availability is checked at initialize time so the
@@ -329,7 +329,7 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
                 self._worker_thread = threading.Thread(
                     target=self._background_worker,
                     daemon=True,
-                    name="mempalace-mcp-worker",
+                    name="mempalace-mcporter-worker",
                 )
                 self._worker_thread.start()
 
@@ -340,12 +340,12 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
                 threading.Thread(
                     target=self._refresh_wakeup_identity,
                     daemon=True,
-                    name="mempalace-mcp-wakeup-id",
+                    name="mempalace-mcporter-wakeup-id",
                 ).start()
                 threading.Thread(
                     target=self._refresh_wakeup_recent,
                     daemon=True,
-                    name="mempalace-mcp-wakeup-diary",
+                    name="mempalace-mcporter-wakeup-diary",
                 ).start()
 
             self._initialized = backend_ready
@@ -396,7 +396,7 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
             except Exception as exc:
                 logger.debug("sync prefetch error: %s", exc)
 
-        thread = threading.Thread(target=_run, daemon=True, name="mempalace-mcp-prefetch-sync")
+        thread = threading.Thread(target=_run, daemon=True, name="mempalace-mcporter-prefetch-sync")
         thread.start()
         thread.join(timeout=self.PREFETCH_TIMEOUT_SECONDS)
         if thread.is_alive():
@@ -425,7 +425,7 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
                 logger.debug("queue_prefetch error: %s", exc)
 
         self._prefetch_thread = threading.Thread(
-            target=_run, daemon=True, name="mempalace-mcp-prefetch-bg"
+            target=_run, daemon=True, name="mempalace-mcporter-prefetch-bg"
         )
         self._prefetch_thread.start()
 
@@ -501,7 +501,7 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
         threading.Thread(
             target=self._refresh_wakeup_recent,
             daemon=True,
-            name="mempalace-mcp-wakeup-diary",
+            name="mempalace-mcporter-wakeup-diary",
         ).start()
 
     def on_session_switch(
@@ -631,7 +631,7 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
-        config_path = Path(hermes_home) / "mempalace-mcp.json"
+        config_path = Path(hermes_home) / "mempalace-mcporter.json"
         existing: Dict[str, Any] = {}
         if config_path.exists():
             try:
@@ -657,7 +657,7 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
     def _load_config(self) -> Dict[str, Any]:
         config: Dict[str, Any] = {}
         if self._hermes_home:
-            config_path = Path(self._hermes_home) / "mempalace-mcp.json"
+            config_path = Path(self._hermes_home) / "mempalace-mcporter.json"
             if config_path.exists():
                 try:
                     config.update(json.loads(config_path.read_text()))
@@ -851,4 +851,4 @@ class MempalaceMcpProvider(MemoryProvider):  # type: ignore[misc]
 
 def register(ctx: Any) -> None:
     """Register the MempalaceMcp provider with Hermes."""
-    ctx.register_memory_provider(MempalaceMcpProvider())
+    ctx.register_memory_provider(MempalaceMcporterProvider())

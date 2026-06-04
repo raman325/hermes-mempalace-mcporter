@@ -1,4 +1,4 @@
-"""Tests for ``plugin/__init__.py`` — the MempalaceMcpProvider class.
+"""Tests for ``plugin/__init__.py`` — the MempalaceMcporterProvider class.
 
 The ``McporterClient`` is replaced with ``unittest.mock.Mock`` for these
 tests so we never shell out. Live MCP behavior is covered by the smoke
@@ -15,7 +15,7 @@ from unittest.mock import Mock
 import pytest
 
 import plugin
-from plugin import MempalaceMcpProvider
+from plugin import MempalaceMcporterProvider
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -24,7 +24,7 @@ from plugin import MempalaceMcpProvider
 
 @pytest.fixture
 def provider():
-    return MempalaceMcpProvider()
+    return MempalaceMcporterProvider()
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ def patched_init(monkeypatch, mock_client_status):
         # Patch the constructor so initialize() picks up our mock.
         monkeypatch.setattr(plugin, "McporterClient", lambda **kw: mock_client)
 
-        p = MempalaceMcpProvider()
+        p = MempalaceMcporterProvider()
         p.initialize("test-session", platform="cli")
         # Wait briefly so the two wake-up background threads complete.
         # They each call the mock client once; the mock returns immediately,
@@ -85,7 +85,7 @@ def patched_init(monkeypatch, mock_client_status):
 
 
 def test_name(provider):
-    assert provider.name == "mempalace-mcp"
+    assert provider.name == "mempalace-mcporter"
 
 
 def test_is_available_returns_true_without_init(provider):
@@ -176,7 +176,7 @@ def test_initialize_leaves_unitialized_when_status_fails(monkeypatch):
     mock_client.call.side_effect = McporterError("backend unreachable")
     monkeypatch.setattr(plugin, "McporterClient", lambda **kw: mock_client)
 
-    p = MempalaceMcpProvider()
+    p = MempalaceMcporterProvider()
     p.initialize("s1", platform="cli")
     assert p._initialized is False
     assert p.get_tool_schemas() == []

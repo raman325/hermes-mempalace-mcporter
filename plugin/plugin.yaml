@@ -1,4 +1,4 @@
-name: mempalace-mcp
+name: mempalace-mcporter
 version: 0.1.0
 description: "MemPalace memory provider routed through mcporter + mcphub — for setups where mempalace runs on a separate host."
 hooks:

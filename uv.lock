@@ -28,7 +28,7 @@ wheels = [
 ]
 
 [[package]]
-name = "hermes-mempalace-mcp"
+name = "hermes-mempalace-mcporter"
 version = "0.1.0"
 source = { virtual = "." }
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Deploy the plugin to ~/.hermes/plugins/mempalace-mcp/ on the hermes host.
+# Deploy the plugin to ~/.hermes/plugins/mempalace-mcporter/ on the hermes host.
 #
 # Hermes loads plugins from $HERMES_HOME/plugins/<name>/ — the directory
 # must contain ``__init__.py`` and ``plugin.yaml`` at its root. We rsync
 # the contents of ``plugin/`` (not the dir itself) into the target.
 #
 # Usage:
-#   ./deploy.sh                  # default host=hermes, default target=~/.hermes/plugins/mempalace-mcp/
+#   ./deploy.sh                  # default host=hermes, default target=~/.hermes/plugins/mempalace-mcporter/
 #   HOST=other ./deploy.sh
 #   HERMES_HOME=/srv/hermes ./deploy.sh
 
@@ -14,7 +14,7 @@ set -euo pipefail
 
 HOST="${HOST:-hermes}"
 HERMES_HOME="${HERMES_HOME:-~/.hermes}"
-TARGET_DIR="${HERMES_HOME}/plugins/mempalace-mcp"
+TARGET_DIR="${HERMES_HOME}/plugins/mempalace-mcporter"
 
 cd "$(dirname "$0")"
 
