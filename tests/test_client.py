@@ -78,14 +78,27 @@ def test_call_invokes_correct_selector_and_args(monkeypatch):
     result = client.call("mempalace_status")
 
     assert result == {"total_drawers": 365}
-    # Selector composition: server.tool_prefix + short_name
+    # Default selector composition: ``mempalace.<tool>`` with no prefix —
+    # matches direct mempalace MCP registration (no aggregator).
     assert fake.last_cmd[:5] == [
         "mcporter",
         "call",
-        "mcphub.mempalace-mempalace_status",
+        "mempalace.mempalace_status",
         "--output",
         "json",
     ]
+
+
+def test_call_with_aggregator_prefix_composes_correctly(monkeypatch):
+    fake = _fake_run(stdout=json.dumps({}))
+    monkeypatch.setattr(subprocess, "run", fake)
+
+    # Aggregator setup (mcphub style): server=mcphub, prefix=mempalace-.
+    client = McporterClient(
+        server="mcphub", tool_prefix="mempalace-", command=["mcporter"]
+    )
+    client.call("mempalace_status")
+    assert fake.last_cmd[2] == "mcphub.mempalace-mempalace_status"
 
 
 def test_call_serialises_args_as_json(monkeypatch):
@@ -203,8 +216,8 @@ def test_call_per_call_timeout_overrides_default(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_default_server_and_prefix_match_expected_setup():
-    # If these values change, the live install on hermes breaks. Pinning
-    # them in tests makes the contract explicit.
-    assert DEFAULT_SERVER == "mcphub"
-    assert TOOL_PREFIX == "mempalace-"
+def test_default_server_and_prefix_match_direct_setup():
+    # Defaults assume mcporter is configured to talk to mempalace directly
+    # (no aggregator). Aggregator setups override via config.
+    assert DEFAULT_SERVER == "mempalace"
+    assert TOOL_PREFIX == ""

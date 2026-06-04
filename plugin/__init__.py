@@ -309,8 +309,8 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
             self._config = self._load_config()
 
             self._client = McporterClient(
-                server=self._config.get("mcporter_server", "mcphub"),
-                tool_prefix=self._config.get("tool_prefix", "mempalace-"),
+                server=self._config.get("mcporter_server", "mempalace"),
+                tool_prefix=self._config.get("tool_prefix", ""),
             )
 
             # Smoke-test the client with the canonical wake-up call. If it
@@ -627,18 +627,23 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
             {
                 "key": "mcporter_server",
                 "env_var": "MEMPALACE_MCPORTER_SERVER",
-                "description": "mcporter server name in ~/.mcporter/mcporter.json.",
-                "default": "mcphub",
+                "description": (
+                    "mcporter server name in ~/.mcporter/mcporter.json. "
+                    "Default 'mempalace' assumes mcporter talks to mempalace "
+                    "directly; set to 'mcphub' (or your aggregator's name) "
+                    "when going through an aggregator."
+                ),
+                "default": "mempalace",
             },
             {
                 "key": "tool_prefix",
                 "env_var": "MEMPALACE_TOOL_PREFIX",
                 "description": (
-                    "Tool name prefix on the aggregator "
-                    "(e.g. 'mempalace-' through mcphub). "
-                    "Empty when mcporter talks directly to mempalace."
+                    "Tool name prefix. Empty default matches direct mempalace "
+                    "registration. Aggregators that namespace tools by source "
+                    "server (mcphub uses 'mempalace-') need this set to match."
                 ),
-                "default": "mempalace-",
+                "default": "",
             },
             {
                 "key": "n_prefetch",

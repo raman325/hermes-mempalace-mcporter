@@ -2,24 +2,28 @@
 
 Hermes [`MemoryProvider`](https://github.com/NousResearch/hermes-agent) plugin
 that routes through [mempalace](https://github.com/MemPalace/mempalace)'s MCP
-server via [`mcporter`](https://www.npmjs.com/package/mcporter) + your existing
-MCP aggregator (`mcphub`).
+server via [`mcporter`](https://www.npmjs.com/package/mcporter). Works against
+a direct mempalace MCP server out of the box; aggregators like `mcphub` are
+supported via config.
 
 This is **Phase 2** of the MemPalace + Hermes integration. Phase 1 is the
 in-tree Python plugin at `mempalace/integrations/hermes/` in
 [MemPalace/mempalace#1684](https://github.com/MemPalace/mempalace/pull/1684):
 same `MemoryProvider` ABC, but Phase 1 imports mempalace as a Python module
-while Phase 2 reaches mempalace over MCP. Use Phase 2 when mempalace runs on
-a different host than Hermes and you already have an MCP aggregator wired up.
+while Phase 2 reaches mempalace over MCP. Use Phase 2 when Hermes runs in a
+different process — or on a different host — than mempalace.
 
 ## When to use this
 
 - **Phase 1** — you `pip install mempalace` on the same machine as Hermes;
   the plugin imports mempalace directly. Simple, local-only.
-- **Phase 2 (this)** — mempalace runs on a remote host (e.g. `docker-server`);
-  Hermes reaches it through mcporter + mcphub. Network-attached palace.
+- **Phase 2 (this)** — mempalace is reachable over MCP; Hermes goes through
+  `mcporter`. Works whether mempalace is local-stdio, remote-HTTP, or behind
+  an MCP aggregator.
 
 ## Architecture
+
+Direct topology (defaults):
 
 ```
 Hermes (Python)
@@ -28,13 +32,22 @@ Hermes (Python)
 MempalaceMcporterProvider  (this plugin)
     │  subprocess
     ▼
-mcporter call mcphub.mempalace-<tool>  (Node.js CLI)
-    │  HTTPS
+mcporter call mempalace.<tool>  (Node.js CLI)
+    │  MCP (stdio or HTTP)
     ▼
-mcphub aggregator
-    │  MCP
-    ▼
-mempalace MCP server (on docker-server)
+mempalace MCP server  (anywhere mcporter can reach)
+```
+
+Aggregator topology (override via config):
+
+```
+Hermes → Provider → mcporter call mcphub.mempalace-<tool>
+                        │  HTTPS
+                        ▼
+                   mcphub aggregator
+                        │  MCP
+                        ▼
+                   mempalace + other servers
 ```
 
 Latency per call: ~1s warm (global `mcporter` install) or ~2s cold (via
@@ -96,21 +109,28 @@ Read from `$HERMES_HOME/mempalace-mcporter.json` first, then env vars override:
 |---|---|---|
 | `default_wing` | `MEMPALACE_WING` | `hermes` |
 | `identity_wing` | `MEMPALACE_IDENTITY_WING` | `identity` |
-| `mcporter_server` | `MEMPALACE_MCPORTER_SERVER` | `mcphub` |
-| `tool_prefix` | `MEMPALACE_TOOL_PREFIX` | `mempalace-` |
+| `mcporter_server` | `MEMPALACE_MCPORTER_SERVER` | `mempalace` |
+| `tool_prefix` | `MEMPALACE_TOOL_PREFIX` | `""` (empty) |
 | `n_prefetch` | — | `3` (clamped 1–20) |
 
-`tool_prefix` is what mcphub prepends to tools from each upstream server. If
-your aggregator uses a different prefix (or none), set it here. Empty string
-is valid — set `{"tool_prefix": ""}` in the JSON when mcporter is configured
-to talk to mempalace directly (no aggregator).
+The defaults assume the simplest topology: mcporter configured to talk to a
+single mempalace MCP server registered as `mempalace`, with no aggregator
+in between. Tools are addressed as `mempalace.mempalace_status`,
+`mempalace.mempalace_search`, and so on.
 
-Empty-string env var values are treated as **unset** (a deliberate guard
-against accidental clobbering from deactivation scripts). To force a value
-to empty, use the JSON config file.
+**Aggregator setup** (e.g. mcphub): aggregators namespace each upstream
+server's tools, so the same `mempalace_status` shows up as
+`mempalace-mempalace_status` under an aggregator server named `mcphub`.
+Override both keys:
 
-Example `~/.hermes/mempalace-mcporter.json` for a palace whose wings use a
-custom prefix like `myorg_`:
+```json
+{
+  "mcporter_server": "mcphub",
+  "tool_prefix": "mempalace-"
+}
+```
+
+**Custom wing naming** (e.g. a palace where wings use a `myorg_` prefix):
 
 ```json
 {
@@ -118,6 +138,11 @@ custom prefix like `myorg_`:
   "identity_wing": "myorg_identity"
 }
 ```
+
+Empty-string env var values are treated as **unset** (a deliberate guard
+against accidental clobbering from deactivation scripts). To force a value
+to empty — say `tool_prefix: ""` for an aggregator that doesn't add prefixes
+— use the JSON config file.
 
 ## Development
 
@@ -129,7 +154,8 @@ uv run ruff check plugin/
 ./deploy.sh                  # deploy to hermes for smoke testing
 ```
 
-Tests mock the `McporterClient` so they don't need a live mcphub.
+Tests mock the `McporterClient` so they don't need a live mempalace MCP server
+or `mcporter` binary.
 
 ## Relationship to Phase 1
 

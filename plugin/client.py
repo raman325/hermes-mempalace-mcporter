@@ -36,14 +36,17 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger("mempalace_mcporter.client")
 
 
-# Default mcphub server name as registered in ``~/.mcporter/mcporter.json``.
-# Overridable per-call so the plugin works with non-standard configs.
-DEFAULT_SERVER = "mcphub"
+# Default mcporter server name. Matches what you'd get if you ran
+# ``mcporter config add mempalace ...`` to register mempalace's MCP server
+# directly (no aggregator in between). Override when behind an aggregator
+# like mcphub via the provider's ``mcporter_server`` config key.
+DEFAULT_SERVER = "mempalace"
 
-# Tool name prefix as exposed by mcphub. The aggregator prefixes each
-# upstream server's tools with the server name + ``-``, so mempalace's
-# ``mempalace_status`` shows up as ``mempalace-mempalace_status``.
-TOOL_PREFIX = "mempalace-"
+# Default tool prefix. Empty means tools are addressed by their bare name
+# (``mempalace_status``, not ``mempalace-mempalace_status``) — the case when
+# mcporter talks to mempalace directly. Aggregators that namespace tools by
+# source server (mcphub uses ``<server>-`` prefixes) need this set to match.
+TOOL_PREFIX = ""
 
 # Hard ceiling on call duration. Anything longer than this is almost
 # certainly a hung subprocess; better to fail fast than block the
