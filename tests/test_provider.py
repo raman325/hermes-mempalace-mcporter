@@ -93,8 +93,18 @@ def test_is_available_returns_true_without_init(provider):
     assert provider.is_available() is True
 
 
-def test_tool_schemas_hidden_before_initialize(provider):
-    assert provider.get_tool_schemas() == []
+def test_tool_schemas_visible_before_initialize(provider):
+    # Regression for the discovery bug: Hermes' ``agent.memory_manager``
+    # snapshots ``get_tool_schemas()`` at registration time to build its
+    # ``tool_name → provider`` routing table. If we returned ``[]`` there,
+    # the dispatcher would never learn our tool names and every later call
+    # would hit ``"Unknown tool: <name>"`` without reaching ``handle_tool_call``.
+    # Backend readiness gating belongs in ``handle_tool_call``, not here.
+    schemas = provider.get_tool_schemas()
+    assert len(schemas) == 8
+    names = {s["name"] for s in schemas}
+    assert "mempalace_status" in names
+    assert "mempalace_search" in names
 
 
 def test_tool_schemas_count_after_init(patched_init):
@@ -167,9 +177,16 @@ def test_initialize_sets_initialized_on_success(patched_init):
 
 
 def test_initialize_leaves_unitialized_when_status_fails(monkeypatch):
-    # mempalace_status raising must NOT yield _initialized=True. The provider
-    # must look uniformly inactive rather than advertise tools the handlers
-    # will then error on.
+    # ``mempalace_status`` raising must NOT yield _initialized=True so that
+    # ``handle_tool_call`` short-circuits with a structured "not initialized"
+    # error rather than passing a bad call through to the backend.
+    #
+    # Note: ``get_tool_schemas()`` intentionally still returns the 8 schemas
+    # in this state — they describe the *interface*. Hermes' tool router
+    # snapshots them at registration time before ``initialize()`` runs, so
+    # hiding them on failure would leave the router with no mapping and
+    # every later call would return "Unknown tool" from Hermes itself
+    # (never reaching ``handle_tool_call``).
     from plugin.client import McporterError
 
     mock_client = Mock()
@@ -179,7 +196,12 @@ def test_initialize_leaves_unitialized_when_status_fails(monkeypatch):
     p = MempalaceMcporterProvider()
     p.initialize("s1", platform="cli")
     assert p._initialized is False
-    assert p.get_tool_schemas() == []
+    # Schemas still advertised — see comment above.
+    assert len(p.get_tool_schemas()) == 8
+    # But calls fail fast with a clear error so the model knows.
+    result = json.loads(p.handle_tool_call("mempalace_status", {}))
+    assert "error" in result
+    assert "not initialized" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------
