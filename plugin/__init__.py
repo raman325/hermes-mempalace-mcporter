@@ -226,7 +226,164 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "mempalace_add_drawer",
+        "description": (
+            "File a verbatim drawer into the palace. Use for explicit "
+            "structured content the user dictates or you decide to "
+            "persist — the per-turn auto-filing happens separately."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "wing": {"type": "string", "description": "Wing name."},
+                "room": {"type": "string", "description": "Room within the wing."},
+                "content": {
+                    "type": "string",
+                    "description": "Verbatim drawer content (never summarise).",
+                },
+                "source_file": {
+                    "type": "string",
+                    "description": "Optional source-file annotation.",
+                },
+            },
+            "required": ["wing", "room", "content"],
+        },
+    },
+    {
+        "name": "mempalace_delete_drawer",
+        "description": (
+            "Remove a drawer. Reserve for PII cleanup or correcting a "
+            "wrong filing — mempalace's design prefers superseding adds "
+            "over deletes (so ``update_drawer`` / ``list_drawers`` / "
+            "``get_drawer`` aren't exposed; use ``search`` to navigate)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "drawer_id": {"type": "string"},
+            },
+            "required": ["drawer_id"],
+        },
+    },
+    {
+        "name": "mempalace_kg_invalidate",
+        "description": (
+            "Mark a (subject, predicate, object) fact as no longer valid "
+            "from a given date — per the palace protocol's step 5 "
+            "(WHEN FACTS CHANGE: invalidate the old fact, add the new one)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string"},
+                "predicate": {"type": "string"},
+                "object": {"type": "string"},
+                "ended": {
+                    "type": "string",
+                    "description": (
+                        "ISO date the fact stopped being true "
+                        "(optional, defaults to now)."
+                    ),
+                },
+            },
+            "required": ["subject", "predicate", "object"],
+        },
+    },
+    {
+        "name": "mempalace_check_duplicate",
+        "description": (
+            "Check whether content similar to the given text already exists "
+            "in the palace before filing a new drawer. Returns the closest "
+            "match and its similarity score."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string"},
+                "threshold": {
+                    "type": "number",
+                    "description": "Similarity threshold 0–1 (default 0.9).",
+                },
+            },
+            "required": ["content"],
+        },
+    },
+    {
+        "name": "mempalace_kg_timeline",
+        "description": "Full temporal timeline for an entity in the knowledge graph.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entity": {
+                    "type": "string",
+                    "description": "Entity name (optional — all entities if omitted).",
+                },
+            },
+        },
+    },
+    {
+        "name": "mempalace_kg_stats",
+        "description": "Knowledge graph summary statistics (entity / triple counts).",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "mempalace_get_taxonomy",
+        "description": "Full wing → room → drawer-count tree of the palace.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "mempalace_get_aaak_spec",
+        "description": (
+            "Return the full AAAK compression dialect specification. "
+            "Already injected into the wake-up block; fetch when needing "
+            "the complete reference (entity codes, examples, structure)."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "mempalace_traverse",
+        "description": "Traverse the room graph from a starting room, following hallway links.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start_room": {"type": "string"},
+                "max_hops": {"type": "integer", "description": "Default 2."},
+            },
+            "required": ["start_room"],
+        },
+    },
+    {
+        "name": "mempalace_graph_stats",
+        "description": "Palace graph statistics — rooms, hallways, cross-wing tunnels.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "mempalace_find_tunnels",
+        "description": (
+            "Find cross-wing tunnels — direct semantic links between "
+            "rooms in different wings."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "wing_a": {"type": "string"},
+                "wing_b": {"type": "string"},
+            },
+        },
+    },
 ]
+# Surface mirrors mempalace's reference openclaw skill
+# (``mempalace/integrations/openclaw/SKILL.md``) — 19 tools.
+# Intentionally omitted:
+#   * ``update_drawer`` / ``list_drawers`` / ``get_drawer`` — append-first
+#     design; navigate via ``search`` and supersede with new adds rather
+#     than editing.
+#   * ``create_tunnel`` / ``list_tunnels`` / ``delete_tunnel`` /
+#     ``follow_tunnels`` — tunnels are created by mining; agents only
+#     discover them via ``find_tunnels`` / ``traverse``.
+#   * ``sync`` / ``hook_settings`` / ``reconnect`` — admin operations.
+#   * ``memories_filed_away`` — internal helper.
 
 
 # ---------------------------------------------------------------------------
@@ -608,6 +765,31 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
             if tool_name == "mempalace_diary_read":
                 args["agent_name"] = self.DIARY_AGENT_NAME
                 return json.dumps(self._client.call("mempalace_diary_read", args))
+            if tool_name == "mempalace_add_drawer":
+                # Auto-tag agent-originated drawers so they can be told apart
+                # from miner-ingested ones. ``added_by`` defaults to ``"mcp"``
+                # on the mempalace side — overriding gives provenance.
+                args.setdefault("added_by", self.DIARY_AGENT_NAME)
+                return json.dumps(self._client.call("mempalace_add_drawer", args))
+            if tool_name == "mempalace_delete_drawer":
+                return json.dumps(self._client.call("mempalace_delete_drawer", args))
+            # Pure passthroughs — no client-side argument tweaking needed.
+            # Listed explicitly (rather than catch-all) so adding a tool is
+            # a deliberate one-line change and unknown tool names get a
+            # clear error rather than being silently forwarded.
+            PASSTHROUGH_TOOLS = {
+                "mempalace_kg_invalidate",
+                "mempalace_kg_timeline",
+                "mempalace_kg_stats",
+                "mempalace_check_duplicate",
+                "mempalace_get_taxonomy",
+                "mempalace_get_aaak_spec",
+                "mempalace_traverse",
+                "mempalace_graph_stats",
+                "mempalace_find_tunnels",
+            }
+            if tool_name in PASSTHROUGH_TOOLS:
+                return json.dumps(self._client.call(tool_name, args))
             return json.dumps({"error": f"unknown tool: {tool_name}"})
         except McporterError as exc:
             return json.dumps({"error": str(exc)})

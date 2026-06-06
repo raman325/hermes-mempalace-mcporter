@@ -93,6 +93,38 @@ def test_is_available_returns_true_without_init(provider):
     assert provider.is_available() is True
 
 
+# Mirrors the 19-tool surface mempalace's reference openclaw skill exposes
+# (``mempalace/integrations/openclaw/SKILL.md``). Same shape, so a Hermes
+# session and a Claude Code session interact with the palace through the
+# same vocabulary.
+EXPECTED_TOOL_NAMES = {
+    # Search + structure
+    "mempalace_search",
+    "mempalace_status",
+    "mempalace_list_wings",
+    "mempalace_list_rooms",
+    "mempalace_get_taxonomy",
+    "mempalace_get_aaak_spec",
+    # Drawer add / remove / dedup (append-first; no update/list/get)
+    "mempalace_add_drawer",
+    "mempalace_delete_drawer",
+    "mempalace_check_duplicate",
+    # Knowledge graph
+    "mempalace_kg_query",
+    "mempalace_kg_add",
+    "mempalace_kg_invalidate",
+    "mempalace_kg_timeline",
+    "mempalace_kg_stats",
+    # Per-agent diary (agent_name auto-injected to ``hermes``)
+    "mempalace_diary_write",
+    "mempalace_diary_read",
+    # Room-graph navigation (discover-only; tunnels are created by mining)
+    "mempalace_traverse",
+    "mempalace_graph_stats",
+    "mempalace_find_tunnels",
+}
+
+
 def test_tool_schemas_visible_before_initialize(provider):
     # Regression for the discovery bug: Hermes' ``agent.memory_manager``
     # snapshots ``get_tool_schemas()`` at registration time to build its
@@ -101,27 +133,15 @@ def test_tool_schemas_visible_before_initialize(provider):
     # would hit ``"Unknown tool: <name>"`` without reaching ``handle_tool_call``.
     # Backend readiness gating belongs in ``handle_tool_call``, not here.
     schemas = provider.get_tool_schemas()
-    assert len(schemas) == 8
     names = {s["name"] for s in schemas}
-    assert "mempalace_status" in names
-    assert "mempalace_search" in names
+    assert names == EXPECTED_TOOL_NAMES
 
 
 def test_tool_schemas_count_after_init(patched_init):
     p, _ = patched_init()
     schemas = p.get_tool_schemas()
-    assert len(schemas) == 8
     names = {s["name"] for s in schemas}
-    assert names == {
-        "mempalace_search",
-        "mempalace_status",
-        "mempalace_list_wings",
-        "mempalace_list_rooms",
-        "mempalace_kg_query",
-        "mempalace_kg_add",
-        "mempalace_diary_write",
-        "mempalace_diary_read",
-    }
+    assert names == EXPECTED_TOOL_NAMES
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +217,7 @@ def test_initialize_leaves_unitialized_when_status_fails(monkeypatch):
     p.initialize("s1", platform="cli")
     assert p._initialized is False
     # Schemas still advertised — see comment above.
-    assert len(p.get_tool_schemas()) == 8
+    assert len(p.get_tool_schemas()) == len(EXPECTED_TOOL_NAMES)
     # But calls fail fast with a clear error so the model knows.
     result = json.loads(p.handle_tool_call("mempalace_status", {}))
     assert "error" in result
