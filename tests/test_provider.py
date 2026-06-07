@@ -93,10 +93,10 @@ def test_is_available_returns_true_without_init(provider):
     assert provider.is_available() is True
 
 
-# Mirrors the 19-tool surface mempalace's reference openclaw skill exposes
-# (``mempalace/integrations/openclaw/SKILL.md``). Same shape, so a Hermes
-# session and a Claude Code session interact with the palace through the
-# same vocabulary.
+# 27 tools — openclaw's reference skill set (19 tools as of
+# MemPalace/mempalace#491) plus the 8 agent-facing tools mempalace has
+# added since that openclaw hasn't caught up to. Admin/internal tools
+# (sync, hook_settings, reconnect) intentionally omitted.
 EXPECTED_TOOL_NAMES = {
     # Search + structure
     "mempalace_search",
@@ -105,9 +105,12 @@ EXPECTED_TOOL_NAMES = {
     "mempalace_list_rooms",
     "mempalace_get_taxonomy",
     "mempalace_get_aaak_spec",
-    # Drawer add / remove / dedup (append-first; no update/list/get)
+    # Drawer CRUD
     "mempalace_add_drawer",
+    "mempalace_update_drawer",
     "mempalace_delete_drawer",
+    "mempalace_list_drawers",
+    "mempalace_get_drawer",
     "mempalace_check_duplicate",
     # Knowledge graph
     "mempalace_kg_query",
@@ -118,10 +121,16 @@ EXPECTED_TOOL_NAMES = {
     # Per-agent diary (agent_name auto-injected to ``hermes``)
     "mempalace_diary_write",
     "mempalace_diary_read",
-    # Room-graph navigation (discover-only; tunnels are created by mining)
+    # Room-graph navigation + tunnel management
     "mempalace_traverse",
     "mempalace_graph_stats",
     "mempalace_find_tunnels",
+    "mempalace_create_tunnel",
+    "mempalace_list_tunnels",
+    "mempalace_delete_tunnel",
+    "mempalace_follow_tunnels",
+    # Session-level
+    "mempalace_memories_filed_away",
 }
 
 

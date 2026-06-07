@@ -251,18 +251,54 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
         },
     },
     {
-        "name": "mempalace_delete_drawer",
+        "name": "mempalace_update_drawer",
         "description": (
-            "Remove a drawer. Reserve for PII cleanup or correcting a "
-            "wrong filing — mempalace's design prefers superseding adds "
-            "over deletes (so ``update_drawer`` / ``list_drawers`` / "
-            "``get_drawer`` aren't exposed; use ``search`` to navigate)."
+            "Edit an existing drawer in place. Prefer adding a new drawer "
+            "that supersedes the old one unless updating is specifically "
+            "needed — mempalace is append-first."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "drawer_id": {"type": "string"},
+                "content": {"type": "string", "description": "New verbatim content (optional)."},
+                "wing": {"type": "string", "description": "New wing (optional)."},
+                "room": {"type": "string", "description": "New room (optional)."},
             },
+            "required": ["drawer_id"],
+        },
+    },
+    {
+        "name": "mempalace_delete_drawer",
+        "description": (
+            "Remove a drawer. Reserve for PII cleanup or correcting a "
+            "wrong filing — mempalace's design prefers superseding adds."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"drawer_id": {"type": "string"}},
+            "required": ["drawer_id"],
+        },
+    },
+    {
+        "name": "mempalace_list_drawers",
+        "description": "List drawers in a wing/room with their previews.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "wing": {"type": "string", "description": "Wing filter (optional)."},
+                "room": {"type": "string", "description": "Room filter (optional)."},
+                "limit": {"type": "integer", "description": "Default 20."},
+                "offset": {"type": "integer", "description": "Default 0."},
+            },
+        },
+    },
+    {
+        "name": "mempalace_get_drawer",
+        "description": "Fetch a drawer's full verbatim content by id.",
+        "parameters": {
+            "type": "object",
+            "properties": {"drawer_id": {"type": "string"}},
             "required": ["drawer_id"],
         },
     },
@@ -282,8 +318,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
                 "ended": {
                     "type": "string",
                     "description": (
-                        "ISO date the fact stopped being true "
-                        "(optional, defaults to now)."
+                        "ISO date the fact stopped being true (optional, defaults to now)."
                     ),
                 },
             },
@@ -361,8 +396,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
     {
         "name": "mempalace_find_tunnels",
         "description": (
-            "Find cross-wing tunnels — direct semantic links between "
-            "rooms in different wings."
+            "Find cross-wing tunnels — direct semantic links between rooms in different wings."
         ),
         "parameters": {
             "type": "object",
@@ -372,18 +406,76 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "mempalace_create_tunnel",
+        "description": (
+            "Create a tunnel between two rooms across wings to bridge "
+            "cross-cutting entities."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "wing_a": {"type": "string"},
+                "room_a": {"type": "string"},
+                "wing_b": {"type": "string"},
+                "room_b": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["wing_a", "room_a", "wing_b", "room_b"],
+        },
+    },
+    {
+        "name": "mempalace_list_tunnels",
+        "description": "List tunnels, optionally scoped to a wing.",
+        "parameters": {
+            "type": "object",
+            "properties": {"wing": {"type": "string"}},
+        },
+    },
+    {
+        "name": "mempalace_delete_tunnel",
+        "description": "Remove a tunnel by id.",
+        "parameters": {
+            "type": "object",
+            "properties": {"tunnel_id": {"type": "string"}},
+            "required": ["tunnel_id"],
+        },
+    },
+    {
+        "name": "mempalace_follow_tunnels",
+        "description": (
+            "Follow tunnels outward from a (wing, room) pair to discover "
+            "connected rooms."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "wing": {"type": "string"},
+                "room": {"type": "string"},
+            },
+            "required": ["wing", "room"],
+        },
+    },
+    {
+        "name": "mempalace_memories_filed_away",
+        "description": "Show drawers that were filed (with metadata) during the current session.",
+        "parameters": {"type": "object", "properties": {}},
+    },
 ]
-# Surface mirrors mempalace's reference openclaw skill
-# (``mempalace/integrations/openclaw/SKILL.md``) — 19 tools.
-# Intentionally omitted:
-#   * ``update_drawer`` / ``list_drawers`` / ``get_drawer`` — append-first
-#     design; navigate via ``search`` and supersede with new adds rather
-#     than editing.
-#   * ``create_tunnel`` / ``list_tunnels`` / ``delete_tunnel`` /
-#     ``follow_tunnels`` — tunnels are created by mining; agents only
-#     discover them via ``find_tunnels`` / ``traverse``.
-#   * ``sync`` / ``hook_settings`` / ``reconnect`` — admin operations.
-#   * ``memories_filed_away`` — internal helper.
+# Surface: 27 tools — mempalace's openclaw reference skill set (19 tools as
+# of PR MemPalace/mempalace#491, April 2026) plus the 8 agent-facing tools
+# mempalace has added since that openclaw hasn't caught up to
+# (``update_drawer`` / ``list_drawers`` / ``get_drawer`` /
+# ``create_tunnel`` / ``list_tunnels`` / ``delete_tunnel`` /
+# ``follow_tunnels`` / ``memories_filed_away``).
+#
+# Intentionally omitted (admin/internal):
+#   * ``sync`` / ``hook_settings`` / ``reconnect`` — admin operations the
+#     agent shouldn't normally need. ``sync`` in particular writes to disk
+#     by mining a project directory; reserve for explicit user-initiated
+#     terminal commands.
+#   * ``status_via_sqlite`` (internal status fallback) and ``error``
+#     (response-shape helper) are not user-facing tools.
 
 
 # ---------------------------------------------------------------------------
@@ -771,22 +863,29 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
                 # on the mempalace side — overriding gives provenance.
                 args.setdefault("added_by", self.DIARY_AGENT_NAME)
                 return json.dumps(self._client.call("mempalace_add_drawer", args))
-            if tool_name == "mempalace_delete_drawer":
-                return json.dumps(self._client.call("mempalace_delete_drawer", args))
             # Pure passthroughs — no client-side argument tweaking needed.
             # Listed explicitly (rather than catch-all) so adding a tool is
             # a deliberate one-line change and unknown tool names get a
             # clear error rather than being silently forwarded.
             PASSTHROUGH_TOOLS = {
+                "mempalace_update_drawer",
+                "mempalace_delete_drawer",
+                "mempalace_list_drawers",
+                "mempalace_get_drawer",
+                "mempalace_check_duplicate",
                 "mempalace_kg_invalidate",
                 "mempalace_kg_timeline",
                 "mempalace_kg_stats",
-                "mempalace_check_duplicate",
                 "mempalace_get_taxonomy",
                 "mempalace_get_aaak_spec",
                 "mempalace_traverse",
                 "mempalace_graph_stats",
                 "mempalace_find_tunnels",
+                "mempalace_create_tunnel",
+                "mempalace_list_tunnels",
+                "mempalace_delete_tunnel",
+                "mempalace_follow_tunnels",
+                "mempalace_memories_filed_away",
             }
             if tool_name in PASSTHROUGH_TOOLS:
                 return json.dumps(self._client.call(tool_name, args))
@@ -808,8 +907,7 @@ class MempalaceMcporterProvider(MemoryProvider):  # type: ignore[misc]
                 "key": "identity_wing",
                 "env_var": "MEMPALACE_IDENTITY_WING",
                 "description": (
-                    "Wing whose drawers compose the identity layer of "
-                    "system_prompt_block."
+                    "Wing whose drawers compose the identity layer of system_prompt_block."
                 ),
                 "default": self.IDENTITY_WING,
             },
